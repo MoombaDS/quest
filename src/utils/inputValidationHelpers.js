@@ -60,3 +60,65 @@ export const readInputAndCreateDispatchable = (list, attemptTypes, attemptType, 
         refineInput(attemptType)
     );
 };
+
+const firstWordOf = (string) => R.compose(R.head, R.split(' '))(string);
+
+export const observeCommand = R.curry((commandType, f, predicateFunction, getDispatchableFor, observable) => {
+	const filter = R.filter(predicateFunction);
+	return filter(observable)
+		.map(input => {
+			let dispatchables = getDispatchableFor(f, input);
+			return dispatchables[commandType]();
+		});
+});
+
+export const generateDispatchable = R.curry((constants, actions, messageGen, player,
+	playerPos, map, encounter, NPC, f, input = R.empty('')) => {
+	const {
+		EQUIP:equip,
+		LOOK_AT:lookAt,
+		LOOK_AROUND:lookAround,
+		RESET:reset, TALK:talk,
+		ATTACK:attack,
+		OBSERVE:observe,
+		EXPECTING_BATTLE
+	} = constants;
+
+	return Object.freeze({
+		[equip]: () => {
+			return (dispatch) => {
+				dispatch(f(input));
+			};
+		},
+		[lookAround]: () => {
+			return (dispatch)=> {
+				dispatch(f(playerPos, map));
+			};
+		},
+		[reset]: () => {
+			return (dispatch) => {
+				dispatch(actions.showMessage(messageGen.getPlayerWantResetMessage(), 0));
+				dispatch(actions.showMessage(messageGen.getResetMessage(name), 1000));
+				dispatch(f(constants.EXPECTING_RESET));
+				dispatch(f(constants.EXPECTING_CONF));
+			};
+		},
+		[talk]: () => {
+			return (dispatch) => {
+				dispatch(f(messageGen.getEncounterTalkMessage(NPC), 0));
+				dispatch(f(messageGen.getEncounterRandomTalkMessage(NPC), 1000));
+			};
+		},
+		[attack]: () => {
+			return (dispatch)=> {
+				dispatch(actions.setInputExpected(EXPECTING_BATTLE)); // Set to battle mode
+				dispatch(f(player)); // Make the first move
+			};
+		},
+		[observe]: () => {
+			return (dispatch)=> {
+				dispatch(f(encounter));
+			};
+		}
+	});
+});
